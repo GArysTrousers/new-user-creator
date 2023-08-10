@@ -1,9 +1,7 @@
 $config = Get-Content .\config.conf | ConvertFrom-StringData
 $data = Import-Csv $config.eduhubFilePath
 $yearLevelGroups = @()
-for ($i = 0; $i -le 12; $i++) {
-  $yearLevelGroups += "CN=Year {0:d2},{1}" -f $i, $config.yearLevelGroupOU
-}
+for ($i = 0; $i -le 12; $i++) { $yearLevelGroups += "CN=Year {0:d2},{1}" -f $i, $config.yearLevelGroupOU }
 $props = @("DisplayName", "EmailAddress", "MemberOf")
 
 $data | ForEach-Object {
