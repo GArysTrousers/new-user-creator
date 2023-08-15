@@ -1,8 +1,14 @@
 $config = Get-Content .\config.conf | ConvertFrom-StringData
 $data = Import-Csv $config.eduhubFilePath
-$yearLevelGroups = @()
-for ($i = 0; $i -le 12; $i++) { $yearLevelGroups += "CN=Year {0:d2},{1}" -f $i, $config.yearLevelGroupOU }
 $props = @("DisplayName", "EmailAddress", "MemberOf")
+$yearLevelGroups = @()
+for ($i = 0; $i -le 12; $i++) { 
+  $yearLevelGroups += "CN=Year {0:d2},{1}" -f $i, $config.yearLevelGroupOU 
+}
+$yearLevelOUs = @()
+for ($i = 0; $i -le 12; $i++) { 
+  $yearLevelOUs += "OU=Year {0:d2},{1}" -f $i, $config.studentOU 
+}
 
 $data | ForEach-Object {
   $stu = $_
@@ -44,6 +50,8 @@ $data | ForEach-Object {
         }
         Set-ADAccountPassword -Identity $stu.STKEY -Reset -NewPassword (ConvertTo-SecureString $config.defaultPassword -AsPlainText -Force)
       }
+
+      # Check to see if user info needs updating
       $updateUser = $false
       foreach ($data in $userData.GetEnumerator()) {
         if ($user[$data.Key] -ne $data.Value) {
@@ -60,10 +68,13 @@ $data | ForEach-Object {
         "<Enabling account>"
         $user | Enable-ADAccount
       }
+
+      # Add Student Group
       if ($user.MemberOf -notcontains $config.studentGroup) {
         "<Adding to student group>"
         Add-ADGroupMember $config.studentGroup -Members $user
       }
+      # Add Year Level Group
       if ($user.MemberOf -notcontains $yearLevelGroups[$stu.SCHOOL_YEAR]) {
         "<Setting year level group>"
         $user.MemberOf | Where-Object { $yearLevelGroups -contains $_ } | ForEach-Object { 
@@ -72,6 +83,8 @@ $data | ForEach-Object {
         } # remove any current year groups
         Add-ADGroupMember $yearLevelGroups[$stu.SCHOOL_YEAR] -Members $stu.STKEY
       }
+
+      # User Object Location
       if ($user.DistinguishedName -match 'CN=[^,]+,(.+)') {
         if ($Matches.1 -ne $config.studentOU) {
           "<Moving to students OU>"
