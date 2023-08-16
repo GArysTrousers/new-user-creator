@@ -13,20 +13,20 @@ Takes eduhub data and creates student accounts.
 1. Change the name of example.config.conf to config.conf
 2. Fill out details in config.conf
 3. Open terminal in new-user-creator directory (probably on a server)
-4. Run Create-Users.ps1
+4. Run Check-AD.ps1 to check that OUs and Groups are correct (Optional)
+5. Run Create-Users.ps1
 
 ## Future Features
-- Year Level OUs
-- Password Generation (Currently Static)
+- None atm
 
 ## If you want to action other statuses
 
 "LVNG" {
-  "({0}) {1} {2}" -f $stu.STKEY, $stu.FIRST_NAME, $stu.SURNAME | Write-Host -ForegroundColor Magenta
+  
 }
 "INAC" {
-  "({0}) {1} {2}" -f $stu.STKEY, $stu.FIRST_NAME, $stu.SURNAME | Write-Host -ForegroundColor Gray
+  
 }
 "FUT" {
-  "({0}) {1} {2}" -f $stu.STKEY, $stu.FIRST_NAME, $stu.SURNAME | Write-Host -ForegroundColor Blue
+  
 }
