@@ -2,6 +2,7 @@ $config = Get-Content .\config.conf | ConvertFrom-StringData
 
 ""
 "Year Level Groups"
+$missing = @()
 for ($i = 0; $i -le 12; $i++) { 
   if ($i -lt $config.minYearLevel -or $i -gt $config.maxYearLevel) {
     continue
@@ -13,11 +14,31 @@ for ($i = 0; $i -le 12; $i++) {
   }
   catch {
     $group | Write-Host -ForegroundColor Red
+    $missing += @{
+      DName = $group
+      Name  = ("Year {0:d2}" -f $i)
+    }
+  }
+}
+if ($missing.Length -gt 0) {
+  $input = Read-Host "Create Missing? (y/n)"
+  if ($input -ieq 'y') {
+    foreach ($ou in $missing) {
+      try {
+        New-ADGroup -Name $ou.Name -Path $config.yearLevelGroupOU -GroupCategory Security -GroupScope Global -ErrorAction Stop
+        "{0} Created" -f $ou.DName | Write-Host -ForegroundColor Green
+      }
+      catch {
+        $_
+        "{0} Failed" -f $ou.DName | Write-Host -ForegroundColor Red
+      }
+    }
   }
 }
 
 ""
 "Year Level OUs"
+$missing = @()
 for ($i = 0; $i -le 12; $i++) { 
   if ($i -lt $config.minYearLevel -or $i -gt $config.maxYearLevel) {
     continue
@@ -29,9 +50,24 @@ for ($i = 0; $i -le 12; $i++) {
   }
   catch {
     $ou | Write-Host -ForegroundColor Red
-    $input = Read-Host "Create? (y/n)"
-    if ($input -ieq 'y') {
-      # Make it
+    $missing += @{
+      DName = $ou
+      Name  = ("Year {0:d2}" -f $i)
+    }
+  }
+}
+if ($missing.Length -gt 0) {
+  $input = Read-Host "Create Missing? (y/n)"
+  if ($input -ieq 'y') {
+    foreach ($ou in $missing) {
+      try {
+        New-ADOrganizationalUnit -Name $ou.Name -Path $config.studentOU -ErrorAction Stop
+        "{0} Created" -f $ou.DName | Write-Host -ForegroundColor Green
+      }
+      catch {
+        $_
+        "{0} Failed" -f $ou.DName | Write-Host -ForegroundColor Red
+      }
     }
   }
 }

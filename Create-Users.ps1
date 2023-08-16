@@ -1,5 +1,8 @@
+Import-Module ./Password-Generator.ps1 -Force
+$TextInfo = (Get-Culture).TextInfo
+
 $config = Get-Content .\config.conf | ConvertFrom-StringData
-$data = Import-Csv $config.eduhubFilePath
+$students = Import-Csv $config.eduhubFilePath
 $props = @("DisplayName", "EmailAddress", "MemberOf")
 $yearLevelGroups = @()
 for ($i = 0; $i -le 12; $i++) { 
@@ -10,108 +13,130 @@ for ($i = 0; $i -le 12; $i++) {
   $yearLevelOUs += "OU=Year {0:d2},{1}" -f $i, $config.studentOU 
 }
 
-$data | ForEach-Object {
-  $stu = $_
-  switch ($_.STATUS) {
-    "ACTV" { 
-      "({0}) {1} {2}" -f $stu.STKEY, $stu.FIRST_NAME, $stu.SURNAME | Write-Host -ForegroundColor Green
-      $name = '{0} {1} ({2})' -f $stu.FIRST_NAME, $stu.SURNAME, $stu.STKEY
-      $userData = @{
-        GivenName         = $stu.FIRST_NAME
-        Surname           = $stu.SURNAME
-        DisplayName       = '{0} {1}' -f $stu.FIRST_NAME, $stu.SURNAME
-        SamAccountName    = $stu.STKEY
-        UserPrincipalName = '{0}@{1}' -f $stu.STKEY, $config.domainEmail
-        EmailAddress      = '{0}@{1}' -f $stu.STKEY, $config.domainEmail
-      }
-      try {
-        $user = Get-ADUser -Identity $stu.STKEY -Properties $props -ErrorAction Stop
-        "[Account exists]"
-      }
-      catch {
-        "<Making account>"
-        New-ADUser -Name $name -OtherAttributes @userData -Path $config.studentOU
-        $userFound = $false
-        while ($count -le $config.newAccountWaitTime) {
-          Start-Sleep -Seconds 1
-          Write-Host '.' -NoNewline
-          try {
-            $user = Get-ADUser -Identity $stu.STKEY -Properties $props -ErrorAction Stop
-            $userFound = $true
+foreach ($stu in $students) {
+  try {
+    $curStu = "({0}) {1} {2}" -f $stu.STKEY, $stu.FIRST_NAME, $stu.SURNAME
+    $log = ""
+    $err = ""
+    switch ($stu.STATUS) {
+      "ACTV" { 
+        $surname = $TextInfo.ToTitleCase($stu.SURNAME.ToLower())
+        $name = ('{0} {1} ({2})' -f $stu.PREF_NAME, $surname, $stu.STKEY)
+        $userData = @{
+          GivenName         = $stu.FIRST_NAME
+          Surname           = $surname
+          DisplayName       = '{0} {1}' -f $stu.PREF_NAME, $surname
+          SamAccountName    = $stu.STKEY
+          UserPrincipalName = '{0}@{1}' -f $stu.STKEY, $config.domainEmail
+          EmailAddress      = '{0}@{1}' -f $stu.STKEY, $config.domainEmail
+        }
+        try {
+          $user = Get-ADUser -Identity $stu.STKEY -Properties $props -ErrorAction Stop
+          $log += " [Exists]"
+        }
+        catch {
+          $log += " [Not Exists] <Making account>"
+          New-ADUser -Name $name -OtherAttributes @userData -Path $yearLevelOUs[$stu.SCHOOL_YEAR]
+          $userFound = $false
+          while ($count -le $config.newAccountWaitTime) {
+            Start-Sleep -Seconds 1
+            $log += '.'
+            try {
+              $user = Get-ADUser -Identity $stu.STKEY -Properties $props -ErrorAction Stop
+              $userFound = $true
+              break
+            }
+            catch {
+              $count += 1
+            }
+          }
+          if ($userFound -eq $false) {
+            $log += "[Waiting for account took too long]"
             break
           }
-          catch {
-            $count += 1
+          $newPassword = Get-Password -Input $stu.STKEY -Pattern $config.passwordPattern -Salt $config.passwordSalt
+          Set-ADAccountPassword -Identity $stu.STKEY -Reset -NewPassword (ConvertTo-SecureString $newPassword -AsPlainText -Force)
+        }
+
+        # Check to see if user info needs updating
+        $updateUser = $false
+        foreach ($data in $userData.GetEnumerator()) {
+          if ($user[$data.Key] -cne $data.Value) {
+            $updateUser = $true
+            break
           }
         }
-        if ($userFound -eq $false) {
-          "Waiting for account took too long"
-          return
+        if ($updateUser) {
+          $log += " <Updating Profile>"
+          $userData["Identity"] = $stu.STKEY
+          Set-ADUser @userData
         }
-        Set-ADAccountPassword -Identity $stu.STKEY -Reset -NewPassword (ConvertTo-SecureString $config.defaultPassword -AsPlainText -Force)
-      }
+        if ($user.Enabled -eq $false) {
+          $log += " <Enabling Account>"
+          $user | Enable-ADAccount
+        }
 
-      # Check to see if user info needs updating
-      $updateUser = $false
-      foreach ($data in $userData.GetEnumerator()) {
-        if ($user[$data.Key] -ne $data.Value) {
-          $updateUser = $true
+        # Add Student Group
+        if ($user.MemberOf -notcontains $config.studentGroup) {
+          $log += " <Adding Student Group>"
+          Add-ADGroupMember $config.studentGroup -Members $user
+        }
+        # Add Year Level Group
+        if ($user.MemberOf -notcontains $yearLevelGroups[$stu.SCHOOL_YEAR]) {
+          $log += " <Adding Year Level Group>"
+          $user.MemberOf | Where-Object { $yearLevelGroups -contains $_ } | ForEach-Object { 
+            $log += " <Removing Old Group>"
+            Remove-ADGroupMember $_ -Members $user -Confirm:$false
+          } # remove any current year groups
+          Add-ADGroupMember $yearLevelGroups[$stu.SCHOOL_YEAR] -Members $stu.STKEY
+        }
+
+        # User Object Location
+        if ($user.DistinguishedName -match 'CN=[^,]+,(.+)') {
+          if ($Matches.1 -ne $yearLevelOUs[$stu.SCHOOL_YEAR]) {
+            $log += " <Moving to OU>"
+            Move-ADObject $user.DistinguishedName -TargetPath $yearLevelOUs[$stu.SCHOOL_YEAR]
+          }
+        }
+      }
+      "LEFT" { 
+        try {
+          $user = Get-ADUser -Identity $stu.STKEY -ErrorAction Stop
+          $log += " [Exists]"
+        }
+        catch {
+          $log += " [Not in AD]"
           break
         }
-      }
-      if ($updateUser) {
-        "<Updating Profile>"
-        $userData["Identity"] = $stu.STKEY
-        Set-ADUser @userData
-      }
-      if ($user.Enabled -eq $false) {
-        "<Enabling account>"
-        $user | Enable-ADAccount
-      }
-
-      # Add Student Group
-      if ($user.MemberOf -notcontains $config.studentGroup) {
-        "<Adding to student group>"
-        Add-ADGroupMember $config.studentGroup -Members $user
-      }
-      # Add Year Level Group
-      if ($user.MemberOf -notcontains $yearLevelGroups[$stu.SCHOOL_YEAR]) {
-        "<Setting year level group>"
-        $user.MemberOf | Where-Object { $yearLevelGroups -contains $_ } | ForEach-Object { 
-          "<Removing group: {0}>" -f $_.Name
-          Remove-ADGroupMember $_ -Members $user -Confirm:$false
-        } # remove any current year groups
-        Add-ADGroupMember $yearLevelGroups[$stu.SCHOOL_YEAR] -Members $stu.STKEY
-      }
-
-      # User Object Location
-      if ($user.DistinguishedName -match 'CN=[^,]+,(.+)') {
-        if ($Matches.1 -ne $config.studentOU) {
-          "<Moving to students OU>"
-          $user | Move-ADObject $config.studentOU
+        if ($user.Enabled -eq $true) {
+          $log += " <Disabling account>"
+          $user | Disable-ADAccount
+        }
+        if ($user.DistinguishedName -match 'CN=[^,]+,(.+)') {
+          if ($Matches.1 -ne $config.inactiveStudentOU) {
+            $log += " <Moving to inactive OU>"
+            Move-ADObject $user.DistinguishedName -TargetPath $config.inactiveStudentOU
+          }
         }
       }
     }
-    "LEFT" { 
-      "({0}) {1} {2}" -f $stu.STKEY, $stu.FIRST_NAME, $stu.SURNAME | Write-Host -ForegroundColor Red
-      try {
-        $user = Get-ADUser -Identity $stu.STKEY -ErrorAction Stop
-        "[Account exists]"
+  }
+  catch {
+    $err = $_
+  }
+  finally {
+    switch ($stu.STATUS) {
+      "ACTV" { 
+        Write-Host ("{0,-35} {1}" -f $curStu, $stu.STATUS) -ForegroundColor Green -NoNewline
+        Write-Host $log
       }
-      catch {
-        "[Not in AD]"
-        return
+      "LEFT" { 
+        Write-Host ("{0,-35} {1}" -f $curStu, $stu.STATUS) -ForegroundColor Red -NoNewline
+        Write-Host $log
       }
-      if ($user.Enabled -eq $true) {
-        "<Disabling account>"
-        $user | Disable-ADAccount
-      }
-      if ($user.DistinguishedName -match 'CN=[^,]+,(.+)') {
-        if ($Matches.1 -ne $config.inactiveStudentOU) {
-          "<Moving to inactive OU>"
-          $user | Move-ADObject $config.inactiveStudentOU
-        }
-      }
+    }
+    if ($err -ne "") {
+      Write-Error $err
     }
   }
 }
