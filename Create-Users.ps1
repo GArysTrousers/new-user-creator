@@ -40,13 +40,12 @@ try {
             $log += " [Not Exists] <Making account>"
             New-ADUser -Name $name -Path $yearLevelOUs[$stu.SCHOOL_YEAR] @userData
             $userFound = $false
-            while ($count -le $config.newAccountWaitTime) {
+            while ($count -le $config.newAccountWaitTime -and $userFound -eq $false) {
               Start-Sleep -Seconds 1
               $log += '.'
               try {
                 $user = Get-ADUser -Identity $stu.STKEY -Properties $props -ErrorAction Stop
                 $userFound = $true
-                break
               }
               catch {
                 $count += 1
@@ -56,9 +55,6 @@ try {
               $log += "[Waiting for account took too long]"
               break
             }
-            $newPassword = Get-Password -Input $stu.STKEY -Pattern $config.passwordPattern -Salt $config.passwordSalt
-            Set-ADAccountPassword -Identity $stu.STKEY -Reset -NewPassword (ConvertTo-SecureString $newPassword -AsPlainText -Force)
-            "{0},{1}" -f $stu.STKEY, $newPassword | Out-File $config.newAccountFile -Append
           }
 
           # Check to see if user info needs updating
@@ -75,6 +71,11 @@ try {
             Set-ADUser @userData
           }
           if ($user.Enabled -eq $false) {
+            $log += " <Setting Password>"
+            $newPassword = Get-Password -Base $stu.STKEY -Pattern $config.passwordPattern -Salt $config.passwordSalt
+            Set-ADAccountPassword -Identity $stu.STKEY -Reset -NewPassword (ConvertTo-SecureString $newPassword -AsPlainText -Force)
+            "{0},{1}" -f $stu.STKEY, $newPassword | Out-File $config.newAccountFile -Append
+
             $log += " <Enabling Account>"
             $user | Enable-ADAccount
           }
@@ -142,7 +143,7 @@ try {
       }
       if ($err -ne "") {
         Write-Error $err
-        $runLog += "$err`n"
+        $runLog += "Error: $err`n"
       }
     }
   }
