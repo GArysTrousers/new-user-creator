@@ -38,7 +38,7 @@ try {
           }
           catch {
             $log += " [Not Exists] <Making account>"
-            New-ADUser -Name $name -OtherAttributes @userData -Path $yearLevelOUs[$stu.SCHOOL_YEAR]
+            New-ADUser -Name $name -Path $yearLevelOUs[$stu.SCHOOL_YEAR] @userData
             $userFound = $false
             while ($count -le $config.newAccountWaitTime) {
               Start-Sleep -Seconds 1
@@ -142,7 +142,7 @@ try {
       }
       if ($err -ne "") {
         Write-Error $err
-        $runLog += $err
+        $runLog += "$err`n"
       }
     }
   }
