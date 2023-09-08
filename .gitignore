@@ -1,3 +1,4 @@
 config.conf
 *.csv
 *.log
+On-Finished.ps1

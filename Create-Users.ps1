@@ -5,6 +5,7 @@ $runLog = ''
 $config = Get-Content .\config.conf | ConvertFrom-StringData
 $students = Import-Csv $config.eduhubFilePath
 $props = @("DisplayName", "EmailAddress", "MemberOf")
+$newStudents = @()
 $yearLevelGroups = @()
 for ($i = 0; $i -le 12; $i++) { 
   $yearLevelGroups += "CN=Year {0:d2},{1}" -f $i, $config.yearLevelGroupOU 
@@ -75,7 +76,8 @@ try {
             $newPassword = Get-Password -Base $stu.STKEY -Pattern $config.passwordPattern -Salt $config.passwordSalt
             Set-ADAccountPassword -Identity $stu.STKEY -Reset -NewPassword (ConvertTo-SecureString $newPassword -AsPlainText -Force)
             "{0},{1}" -f $stu.STKEY, $newPassword | Out-File $config.newAccountFile -Append
-
+            $userData["Password"] = $newPassword
+            $newStudents += $userData
             $log += " <Enabling Account>"
             $user | Enable-ADAccount
           }
@@ -155,4 +157,7 @@ catch {
 finally {
   $runLog | Out-File $config.logFile
   Write-Host ("Log File Saved: {0}" -f $config.logFile)
+  if (Test-Path "On-Finished.ps1") {
+    & "On-Finished.ps1" -Config $config -NewStudents $newStudents
+  }
 }
