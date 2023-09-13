@@ -1,4 +1,5 @@
 config.conf
+email.conf
 *.csv
 *.log
 On-Finished.ps1
