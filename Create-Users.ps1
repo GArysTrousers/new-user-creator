@@ -1,3 +1,4 @@
+Import-Module ActiveDirectory -Force
 Import-Module ./Password-Generator.ps1 -Force
 $TextInfo = (Get-Culture).TextInfo
 
@@ -163,6 +164,6 @@ finally {
   $runLog | Out-File $config.logFile
   Write-Host ("Log File Saved: {0}" -f $config.logFile)
   if (Test-Path "./email.conf") {
-    & "Email-NewUsers.ps1" -NewStudents $newStudents
+    & "./Email-NewUsers.ps1" -NewStudents $newStudents
   }
 }
