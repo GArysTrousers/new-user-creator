@@ -109,7 +109,7 @@ try {
         "LEFT" { 
           try {
             $user = Get-ADUser -Identity $stu.STKEY -ErrorAction Stop
-            $log += " [Exists]"
+            $log += " [Exists   ]"
           }
           catch {
             $log += " [Not in AD]"
