@@ -36,7 +36,7 @@ try {
           }
           try {
             $user = Get-ADUser -Identity $stu.STKEY -Properties $props -ErrorAction Stop
-            $log += " [Exists    ]"
+            $log += " [Exists   ]"
           }
           catch {
             $log += " [Not Exists] <Making account>"
