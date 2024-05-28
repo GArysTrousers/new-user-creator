@@ -25,7 +25,7 @@ if ($config.passwordPattern -match "^[Ab0!]+$") {
 if ($config.passwordSalt -ne "") {
   Write-Host "$tick Password Salt" -ForegroundColor Green
 } else {
-  Write-Host "$cross Password Salt" -ForegroundColor Red
+  Write-Host "$cross Password Salt - Shouldn't be blank" -ForegroundColor Red
 }
 
 try {

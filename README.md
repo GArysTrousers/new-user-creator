@@ -72,6 +72,26 @@ newAccountFile: The file name that new account details will be saved into
   - This file will contain username, password for accounts created
   Eg: ./new_accounts.log
 ```
+
+## Email New Student Passwords
+You can rename example.email.conf to email.conf to start emailing the new account to an address.
+
+Make sure you complete the conf file too.
+
+## Custom Extentions
+You can add a new script with the following names that will execute at different times in the script. 
+
+Copy the param block to the top of the file.
+
+### Custom-End.ps1
+The last thing to execute, useful for adding passwords to a database or text file etc
+```
+param (
+  [array] $Students,    # All the students
+  [array] $NewStudents, # Only students created this session
+  [string] $RunLog      # All the text logged this session
+)
+```
 ## Other Status Codes
 ```
 "LVNG", "INAC", "FUT"

@@ -154,16 +154,14 @@ try {
 catch {
   $runLog += "Error Ended Program:`n"
   $runLog += $_
-  Invoke-WebRequest -Uri "http://10.128.128.70:4003" -Method POST -Body @{
-    to        = $config.errorEmail;
-    subject   = "User Creator Error";
-    plainText = $runLog
-  }
 }
 finally {
   $runLog | Out-File $config.logFile
   Write-Host ("Log File Saved: {0}" -f $config.logFile)
   if (Test-Path "./email.conf") {
     & "./Email-NewUsers.ps1" -NewStudents $newStudents
+  }
+  if (Test-Path "./Custom-End.ps1") {
+    & "./Custom-End.ps1" -Students $students -NewStudents $newStudents -RunLog $runLog
   }
 }
