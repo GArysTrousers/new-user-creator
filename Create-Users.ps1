@@ -78,6 +78,7 @@ try {
             Set-ADAccountPassword -Identity $stu.STKEY -Reset -NewPassword (ConvertTo-SecureString $newPassword -AsPlainText -Force)
             "{0},{1}" -f $stu.STKEY, $newPassword | Out-File $config.newAccountFile -Append
             $userData["Password"] = $newPassword
+            $userData["YearLevel"] = $stu.SCHOOL_YEAR
             $newStudents += $userData
             $log += " <Enabling Account>"
             $user | Enable-ADAccount
