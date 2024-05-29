@@ -28,6 +28,12 @@ if ($config.passwordSalt -ne "") {
   Write-Host "$cross Password Salt - Shouldn't be blank" -ForegroundColor Red
 }
 
+if (Test-Path $config.homeDriveDir) {
+  Write-Host "$tick Home Drive Directory" -ForegroundColor Green
+} else {
+  Write-Host "$cross Home Drive Directory" -ForegroundColor Red
+}
+
 try {
   Get-ADOrganizationalUnit $config.studentOU -ErrorAction Stop | Out-Null
   Write-Host "$tick Student OU" -ForegroundColor Green

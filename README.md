@@ -17,7 +17,7 @@ Takes eduhub data and creates student accounts.
 5. Run Create-Users.ps1
 
 ## Future Features
-- Send email about new accounts
+- Create Home Folder and set permissions
 
 ## About Password Generator
 New accounts have a password generated for them with a hash based algorithm.

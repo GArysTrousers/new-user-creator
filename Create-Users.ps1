@@ -5,7 +5,7 @@ $TextInfo = (Get-Culture).TextInfo
 $runLog = ''
 $config = Get-Content .\config.conf | ConvertFrom-StringData
 $students = Import-Csv $config.eduhubFilePath
-$props = @("DisplayName", "EmailAddress", "MemberOf")
+$props = @("DisplayName", "EmailAddress", "MemberOf", "HomeDirectory", "HomeDrive")
 $newStudents = @()
 $yearLevelGroups = @()
 for ($i = 0; $i -le 12; $i++) { 
@@ -33,6 +33,8 @@ try {
             SamAccountName    = $stu.STKEY
             UserPrincipalName = '{0}@{1}' -f $stu.STKEY, $config.domainEmail
             EmailAddress      = '{0}@{1}' -f $stu.STKEY, $config.domainEmail
+            HomeDirectory     = '{0}\{1}' -f $config.homeDriveDir, $stu.STKEY
+            HomeDrive         = "Y:"
           }
           try {
             $user = Get-ADUser -Identity $stu.STKEY -Properties $props -ErrorAction Stop
@@ -83,6 +85,17 @@ try {
             $log += " <Enabling Account>"
             $user | Enable-ADAccount
           }
+
+          # Add Folder if it doesn't exist
+          # Also Set the Permissions
+          if (Test-Path $userData.HomeDirectory -eq $false) {
+            New-Item -ItemType Directory -Path $userData.HomeDirectory
+          }
+          $acl = New-Object System.Security.AccessControl.DirectorySecurity
+          $acl.SetOwner($user)
+          $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("everyone","FullControl","Allow")
+
+
 
           # Add Student Group
           if ($user.MemberOf -notcontains $config.studentGroup) {
