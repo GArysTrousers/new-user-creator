@@ -15,6 +15,10 @@ $yearLevelOUs = @()
 for ($i = 0; $i -le 12; $i++) { 
   $yearLevelOUs += "OU=Year {0:d2},{1}" -f $i, $config.studentOU 
 }
+$inactivePath = $config.homeDriveDir + "\Inactive"
+if ((Test-Path $inactivePath) -eq $false) {
+  New-Item -ItemType Directory -Path $inactivePath | Out-Null
+}
 
 try {
   foreach ($stu in $students) {
@@ -22,6 +26,8 @@ try {
       $curStu = "({0}) {1} {2}" -f $stu.STKEY, $stu.FIRST_NAME, $stu.SURNAME
       $log = ""
       $err = ""
+      $user = $null
+      $userData = $null
       switch ($stu.STATUS) {
         "ACTV" { 
           $surname = $TextInfo.ToTitleCase($stu.SURNAME.ToLower())
@@ -130,21 +136,28 @@ try {
           try {
             $user = Get-ADUser -Identity $stu.STKEY -ErrorAction Stop
             $log += " [Exists   ]"
+            if ($user.Enabled -eq $true) {
+              $log += " <Disabling account>"
+              $user | Disable-ADAccount
+            }
+            if ($user.DistinguishedName -match 'CN=[^,]+,(.+)') {
+              if ($Matches.1 -ne $config.inactiveStudentOU) {
+                $log += " <Moving to inactive OU>"
+                Move-ADObject $user.DistinguishedName -TargetPath $config.inactiveStudentOU
+              }
+            }
           }
           catch {
             $log += " [Not in AD]"
-            break
+            $user = $null
           }
-          if ($user.Enabled -eq $true) {
-            $log += " <Disabling account>"
-            $user | Disable-ADAccount
+          # Move files to inactive folder
+          $homeDrive = "$($config.homeDriveDir)\$($stu.STKEY)"
+          if (Test-Path $homeDrive) {
+            $log += " <Moving Directory to Inactive>"
+            Move-Item -Path $homeDrive -Destination "$inactivePath\" | Out-Null
           }
-          if ($user.DistinguishedName -match 'CN=[^,]+,(.+)') {
-            if ($Matches.1 -ne $config.inactiveStudentOU) {
-              $log += " <Moving to inactive OU>"
-              Move-ADObject $user.DistinguishedName -TargetPath $config.inactiveStudentOU
-            }
-          }
+          
         }
       }
     }
