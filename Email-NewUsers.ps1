@@ -48,4 +48,6 @@ if ($NewStudents.Count -gt 0) {
   catch {
     Write-Host "Email failed to send" -ForegroundColor Red
   }
+} else {
+  Write-Host "No new students, no email sent"
 }

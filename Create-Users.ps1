@@ -87,15 +87,21 @@ try {
           }
 
           # Add Folder if it doesn't exist
-          # Also Set the Permissions
-          if (Test-Path $userData.HomeDirectory -eq $false) {
-            New-Item -ItemType Directory -Path $userData.HomeDirectory
+          if ((Test-Path $userData.HomeDirectory) -eq $false) {
+            $log += " <Creating Directory>"
+            New-Item -ItemType Directory -Path $userData.HomeDirectory | Out-Null
           }
+          # Check/Set the Permissions
           $acl = New-Object System.Security.AccessControl.DirectorySecurity
-          $acl.SetOwner($user)
-          $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("everyone","FullControl","Allow")
-
-
+          $acl.SetAccessRuleProtection($true, $false) # Disable Inherited Permissions
+          $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule "NT AUTHORITY\SYSTEM", "FullControl", "ContainerInherit, ObjectInherit", "None", "Allow"))
+          $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule "$($config.domainPrefix)\Domain Admins", "FullControl", "ContainerInherit, ObjectInherit", "None", "Allow"))
+          $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule "$($config.domainPrefix)\$($config.staffGroupName)", "Read", "ContainerInherit, ObjectInherit", "None", "Allow"))
+          $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule "$($config.domainPrefix)\$($stu.STKEY)", "Modify", "ContainerInherit, ObjectInherit", "None", "Allow"))
+          if ($acl.AccessToString -ne (Get-Acl $userData.HomeDirectory).AccessToString) {
+            $log += " <Setting Permissions>"
+            Set-Acl -Path $userData.HomeDirectory -AclObject $acl
+          }
 
           # Add Student Group
           if ($user.MemberOf -notcontains $config.studentGroup) {
@@ -153,9 +159,11 @@ try {
           $runLog += "{0,-35} {1}{2}`n" -f $curStu, $stu.STATUS, $log
         }
         "LEFT" { 
-          Write-Host ("{0,-35} {1}" -f $curStu, $stu.STATUS) -ForegroundColor Red -NoNewline
-          Write-Host $log
-          $runLog += "{0,-35} {1}{2}`n" -f $curStu, $stu.STATUS, $log
+          if ($log -ne " [Exists   ]" -and $log -ne " [Not in AD]") {
+            Write-Host ("{0,-35} {1}" -f $curStu, $stu.STATUS) -ForegroundColor Red -NoNewline
+            Write-Host $log
+            $runLog += "{0,-35} {1}{2}`n" -f $curStu, $stu.STATUS, $log
+          }
         }
       }
       if ($err -ne "") {
@@ -172,10 +180,10 @@ catch {
 finally {
   $runLog | Out-File $config.logFile
   Write-Host ("Log File Saved: {0}" -f $config.logFile)
-  if (Test-Path "./email.conf") {
-    & "./Email-NewUsers.ps1" -NewStudents $newStudents
+  if (Test-Path ".\email.conf") {
+    & ".\Email-NewUsers.ps1" -NewStudents $newStudents
   }
-  if (Test-Path "./Custom-End.ps1") {
-    & "./Custom-End.ps1" -Students $students -NewStudents $newStudents -RunLog $runLog
+  if (Test-Path ".\Custom-End.ps1") {
+    & ".\Custom-End.ps1" -Students $students -NewStudents $newStudents -RunLog $runLog
   }
 }
